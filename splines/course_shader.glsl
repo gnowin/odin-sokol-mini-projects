@@ -14,19 +14,22 @@ in vec4 position;
 in vec4 color0;
 in vec4 normal0;
 out vec4 color;
+out vec4 normal;
 
 void main() {
     gl_Position = mvp * position;
-    color = mix(color0, normal0, 0.5);
+    color = color0;
+    normal = normal0;
 }
 @end
 
 @fs fs
 in vec4 color;
+in vec4 normal;
 out vec4 frag_color;
 
 void main() {
-    frag_color = color;
+    frag_color = mix(color, normal, 0.5);
 }
 @end
 

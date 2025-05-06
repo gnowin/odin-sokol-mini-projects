@@ -1,8 +1,3 @@
-//----------------j-------------------------------------------------------------
-//  quad/main.odin
-//
-//  Simple 2D rendering with vertex- and index-buffer.
-//------------------------------------------------------------------------------
 #+feature dynamic-literals
 package main
 
@@ -87,7 +82,7 @@ setup_thick_lines_spline :: proc () {
 update_thick_lines_spline :: proc () {
 	lps : u8 = 32
 	if len(points) > 2 {
-		vertices, indices := get_spline_quad_data(points[:], lines_per_section = lps, line_width = 2.0)	
+		vertices, indices := create_spline_quad_data(points[:], lines_per_section = lps, line_width = 4.0)	
 		points_count := len(points)
 		vertex_count := points_count * int(lps) * 2
 		index_count := points_count * int(lps) * 6
@@ -115,7 +110,6 @@ init :: proc "c" () {
 		logger = { func = slog.func },
 	})
 
-	// a vertex buffer
 	vertices := [?]f32 {
 		// positions         colors
 		-0.5,  0.5, 0.0,     1.0, 1.0, 1.0, 1.0,
@@ -127,14 +121,12 @@ init :: proc "c" () {
 		data = { ptr = &vertices, size = size_of(vertices) },
 	})
 
-	// an index buffer
 	indices := [?]u16 { 0, 1, 2,  0, 2, 3 }
 	state.bind.index_buffer = sg.make_buffer({
 		type = .INDEXBUFFER,
 		data = { ptr = &indices, size = size_of(indices) },
 	})
 
-	// a shader1 and pipeline object
 	state.pip = sg.make_pipeline({
 		shader = sg.make_shader(shader1.quad_shader_desc(sg.query_backend())),
 		index_type = .UINT16,
@@ -144,14 +136,12 @@ init :: proc "c" () {
 			shader1.ATTR_quad_color0 = { format = .FLOAT4 },
 		    },
 		},
-		
 	})
 
-	// default pass action
 	state.pass_action = {
-	colors = {
-	    0 = { load_action = .CLEAR, clear_value = { 0, 0, 0, 1 }},
-	},
+		colors = {
+		    0 = { load_action = .CLEAR, clear_value = { 0, 0, 0, 1 }},
+		},
 	}
 	setup_thick_lines_spline()
 }
@@ -192,6 +182,7 @@ handle_input :: proc (dt : f32) {
 		points[selected_point].z += move_speed * dt
 	}
 
+	// move marker
 	if input.key_down(.Z) {
 		marker -= 1.0 * dt
 	}
@@ -205,8 +196,9 @@ handle_input :: proc (dt : f32) {
 		marker -= f32(len(points))
 	}
 
+	// Add new point in spline
+	// (Worked for orthographic camera, needs to be changed now)
 	if input.mouse_pressed(.LEFT){
-		log.debug("HELLO!")
 		actual_pos := input.get_mouse_pos() * m.vec2{160.0/2560, 80.0/1280}
 		points_len := len(points)
 
@@ -235,12 +227,12 @@ handle_input :: proc (dt : f32) {
 				inject_index = (i+1)%points_len
 			}
 		}
-		log.debug(inject_index)
 		inject_at(&points, inject_index, m.vec3{actual_pos.x, actual_pos.y, 0.0})	
 	}
 }
 
 time : f32
+camera : int
 
 frame :: proc "c" () {
 	context = default_context
@@ -271,16 +263,6 @@ frame :: proc "c" () {
 	spline_point_amount : f32 = 1.0
 
 
-	for t : f32 = 0.0 ; t < f32(len(points)) ; t+= 1.0/spline_point_amount {
-		pos := get_spline_point(t, points[:], true)
-		
-		vs_params := shader1.Vs_Params {
-			mvp = compute_mvp(pos),
-			p_color = {0.5, 0.5, 0.5}
-		}		
-		sg.apply_uniforms(shader1.UB_vs_params, { ptr = &vs_params, size = size_of(vs_params)})
-		sg.draw(0, 6, 1)
-	}
 	for i in 0..<len(points) {
 		vs_params := shader1.Vs_Params {
 			mvp = compute_mvp(points[i]),
@@ -298,21 +280,16 @@ frame :: proc "c" () {
 		p1 := get_spline_point(marker, points[:], true)
 		g1 := get_spline_gradient(marker, points[:], true)
 		p2, p3 := get_spline_wings(p1, g1, 3.0)
-		forward := p1+g1
-		left := m.vec3{p2.x, p2.y, p2.z}
-		p4 := p1 + lin.normalize(lin.cross(left, p1+g1))
-
-		r  := math.atan2(-g1.y, g1.x)
 
 		vs_params = shader1.Vs_Params {
 			mvp = compute_mvp(m.vec3(p1)),
 			p_color = {0.0, 0.0, 1.0}
 		}		
+		vs_params.mvp = compute_mvp( p1 )
 		sg.apply_uniforms(shader1.UB_vs_params, { ptr = &vs_params, size = size_of(vs_params)})
 		sg.draw(0, 6, 1)
 
 		vs_params.mvp = compute_mvp(p2)
-
 		vs_params.p_color = { 1.0, 0.0, 1.0 }
 		sg.apply_uniforms(shader1.UB_vs_params, { ptr = &vs_params, size = size_of(vs_params)})
 		sg.draw(0, 6, 1)
@@ -322,34 +299,16 @@ frame :: proc "c" () {
 		sg.apply_uniforms(shader1.UB_vs_params, { ptr = &vs_params, size = size_of(vs_params)})
 		sg.draw(0, 6, 1)
 		
-		vs_params.mvp = compute_mvp( p1 + lin.normalize(g1) * 10.0)
+		vs_params.mvp = compute_mvp( p1 + lin.normalize(g1) * 5.0)
 		vs_params.p_color = { 0.0, 0.0, 1.0 }
 		sg.apply_uniforms(shader1.UB_vs_params, { ptr = &vs_params, size = size_of(vs_params)})
 		sg.draw(0, 6, 1)
 
-		vs_params.mvp = compute_mvp( p1 )
-		sg.apply_uniforms(shader1.UB_vs_params, { ptr = &vs_params, size = size_of(vs_params)})
-		sg.draw(0, 6, 1)
-
-		vs_params.mvp = compute_mvp( p4 )
-		vs_params.p_color = {1.0,1.0,0.0}
-		sg.apply_uniforms(shader1.UB_vs_params, { ptr = &vs_params, size = size_of(vs_params)})
-		sg.draw(0, 6, 1)
-
-
-		vs_params.mvp = compute_mvp( forward )
-		vs_params.p_color = {1.0,0.0,0.0}
-		sg.apply_uniforms(shader1.UB_vs_params, { ptr = &vs_params, size = size_of(vs_params)})
-		sg.draw(0, 6, 1)
-	
 	}
 	
 	sg.end_pass()
 	sg.commit()
 }
-
-camera : int
-
 compute_ortho_mvp :: proc (pos : m.vec3, scale : f32 = 3.0) -> m.mat4 {
 	proj := lin.matrix_ortho3d_f32(0, 160, 80, 0, -1000, 1000)
 	model := lin.matrix4_translate_f32({pos.x, pos.y, 0}) * lin.matrix4_scale_f32(scale)
@@ -360,13 +319,13 @@ compute_mvp :: proc (pos : m.vec3, scale : f32 = 3.0) -> m.mat4 {
 	proj := lin.matrix4_perspective_f32(fovy = 120.0, aspect = 4.0/3.0, near = 0.01, far = 1000.0)
 	view : m.mat4
 	if camera == 0 {
-		view = lin.matrix4_look_at_f32(eye = {(math.sin(time) - 0.5) * 100, 0.0, 150.0}, centre = {0.0, 0.0, 0.0}, up = {0.0, 1.0, 0.0}, flip_z_axis = true)
+		view = lin.matrix4_look_at_f32(eye = {(math.sin(time) - 0.5) * 100, 0.0, 180.0}, centre = {0.0, 0.0, 0.0}, up = {0.0, 1.0, 0.0}, flip_z_axis = true)
 	}
 	else{
 		p1 := get_spline_point(marker, points[:], true)
 		g1 := get_spline_gradient(marker, points[:], true)
-		w1, _ := get_spline_wings(p1, g1, 1.0)
-		up := lin.normalize(lin.cross(p1+g1, w1))
+		left := right_angle_vector(g1)
+		up := lin.normalize(lin.cross(g1, left))
 		above_ground := up * 2.5
 		view = lin.matrix4_look_at_f32(eye = p1 + above_ground, centre = p1+g1 + above_ground, up = up, flip_z_axis = true)	
 	}

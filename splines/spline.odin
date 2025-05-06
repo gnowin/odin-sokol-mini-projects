@@ -77,18 +77,25 @@ get_spline_gradient :: proc (t : f32, points : []m.vec3, looped : bool = true) -
 	return pos
 }
 
-get_spline_wings :: proc (point : m.vec3, gradient : m.vec3, spread : f32) -> (m.vec3, m.vec3) {
-	//r  := math.atan2(-gradient.y, gradient.x)
-	//w1 := m.vec3{spread * math.sin(r) + point.x, spread * math.cos(r) + point.y, point.z}
-	//w2 := m.vec3{-spread * math.sin(r) + point.x, -spread * math.cos(r) + point.y, point.z}
-	g := gradient
-	w1 := point + spread * lin.normalize(m.vec3{-g.y, g.x, g.z})
-	w2 := point + spread * lin.normalize(m.vec3{g.y, -g.x, g.z})
+// Calculate a vector that is +90 degrees of input vector 
+right_angle_vector :: proc (v : m.vec3) -> m.vec3  {
+	a  := math.atan2(-v.y, v.x)
+//	g := gradient
+//	w1 := point + spread * lin.normalize(m.vec3{-g.y, g.x, g.z})
+//	w2 := point + spread * lin.normalize(m.vec3{g.y, -g.x, g.z})
 	
+	return m.vec3{math.sin(a), math.cos(a), 0.0}
+}
+
+get_spline_wings :: proc (point, gradient : m.vec3, spread : f32) -> (m.vec3, m.vec3){
+	right_vector := right_angle_vector(gradient)
+	w1 := point + -(right_vector * spread)
+	w2 := point +  (right_vector * spread)
+
 	return w1, w2
 }
 
-get_spline_quad_data :: proc (points : []m.vec3, lines_per_section : u8, line_width : f32) -> ([MAX_VERTICES]vertex, [MAX_INDICES]u16) {
+create_spline_quad_data :: proc (points : []m.vec3, lines_per_section : u8, line_width : f32) -> ([MAX_VERTICES]vertex, [MAX_INDICES]u16) {
 	context = default_context
 	lps := lines_per_section
 	point_count := u16(len(points))
@@ -100,17 +107,19 @@ get_spline_quad_data :: proc (points : []m.vec3, lines_per_section : u8, line_wi
 	i := 0
 	for t : f32 = 0.0 ; t < f32(point_count) ; t+= 1.0/f32(lps) {
 		p := get_spline_point(t, points[:], true)
-		g := get_spline_gradient(t, points[:], true)	
+		g := lin.normalize(get_spline_gradient(t, points[:], true))	
 		w1, w2 := get_spline_wings(p, g, line_width)
-		normal1 := (lin.cross(lin.normalize(w1), lin.normalize(p+g)))
-		normal2 := lin.normalize(lin.cross(w2, p+g))
+		
+		left := right_angle_vector(g) 
+
+		normal := lin.normalize(lin.cross(left, g))
 
 		vi := i * 2
 		ii := (i * 6)
 
 
-		line_vertices[vi] 	= vertex{{w2.x, w2.y, w2.z}, {0.2, 0.2, 0.2, 1.0}, normal1}
-		line_vertices[vi+1] 	= vertex{{w1.x, w1.y, w1.z}, {1.0, 1.0, 1.0, 1.0}, normal1}
+		line_vertices[vi] 	= vertex{{w2.x, w2.y, w2.z}, {0.2, 0.2, 0.2, 1.0}, normal}
+		line_vertices[vi+1] 	= vertex{{w1.x, w1.y, w1.z}, {1.0, 1.0, 1.0, 1.0}, normal}
 		
 		line_indices[ii] = 	u16(ii/3)	
 		line_indices[ii+1] = 	u16(ii/3 + 1) % (vertex_count)
