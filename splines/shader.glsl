@@ -2,8 +2,8 @@
 @header import sg "shared:sokol/gfx"
 @header import m "../../../lib/math"
 
-@ctype mat4 m.mat4
-@ctype vec3 m.vec3
+@ctype mat4 m.Mat4
+@ctype vec3 m.Vec3
 
 @vs vs
 layout(binding=0) uniform vs_params {
