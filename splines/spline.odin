@@ -118,7 +118,7 @@ create_spline_quad_data :: proc (points : []m.Vec3, lines_per_section : u8, line
 		ii := (i * 6)
 
 
-		line_vertices[vi] 	= vertex{{w2.x, w2.y, w2.z}, {0.2, 0.2, 0.2, 1.0}, normal}
+		line_vertices[vi] 	= vertex{{w2.x, w2.y, w2.z}, {1.0, 1.0, 1.0, 1.0}, normal}
 		line_vertices[vi+1] 	= vertex{{w1.x, w1.y, w1.z}, {1.0, 1.0, 1.0, 1.0}, normal}
 		
 		line_indices[ii] = 	u16(ii/3)	

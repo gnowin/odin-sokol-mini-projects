@@ -17,9 +17,22 @@ out vec4 color;
 out vec4 normal;
 
 void main() {
-    gl_Position = mvp * position;
-    color = color0;
-    normal = normal0;
+	gl_Position = mvp * position;
+
+	vec3 light_pos = vec3(30.0,0.0,100.0);
+	vec3 camera_pos = vec3(0.0,0.0,180.0);
+	vec4 light_color = vec4(0.5,0.0,0.3,1.0);
+
+
+	vec3 light_dir = normalize(light_pos - vec3(mvp * position));
+	float diff = max(dot(vec3(normal0), light_dir), 0.0);
+	vec4 diffuse = diff * light_color;
+	vec4 ambient = 0.5 * light_color;
+	vec4 result = (ambient+diffuse) * color0;
+
+	color = result;
+
+	normal = normal0;
 }
 @end
 
@@ -29,7 +42,8 @@ in vec4 normal;
 out vec4 frag_color;
 
 void main() {
-    frag_color = mix(color, normal, 0.5);
+	frag_color = color;
+    //frag_color = mix(color, normal, 0.5);
 }
 @end
 
