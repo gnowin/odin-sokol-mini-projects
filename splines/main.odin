@@ -50,7 +50,7 @@ vertex :: struct {
 
 camera := g.DEFAULT_CAMERA
 
-WINDOW_DIMENSIONS :: [2]i32{2560, 1920}
+WINDOW_DIMENSIONS :: [2]i32{960, 720}
 
 
 MAX_POINTS :: 32
@@ -61,12 +61,20 @@ MAX_INDICES :: 6 * MAX_POINTS * MAX_POINTS_PER_LINE
 setup_thick_lines_spline :: proc () {
 	line_state.bind.vertex_buffers[0] = sg.make_buffer({
 		size = MAX_VERTICES * size_of(vertex),
-		usage = .STREAM,
+		usage = {
+			vertex_buffer 	= true,
+			immutable	= false,
+			stream_update 	= true,
+		},
 	})	
 	line_state.bind.index_buffer = sg.make_buffer({
 		size = MAX_INDICES * size_of(u16),
-		type = .INDEXBUFFER,
-		usage = .STREAM,
+		usage = {
+			index_buffer	= true,
+			immutable	= false,
+			stream_update 	= true,
+		},
+
 	})
 	line_state.pip = sg.make_pipeline({
 		shader = sg.make_shader(course_shader.course_shader_desc(sg.query_backend())),
@@ -125,12 +133,19 @@ init :: proc "c" () {
 	}
 	state.bind.vertex_buffers[0] = sg.make_buffer({
 		data = { ptr = &vertices, size = size_of(vertices) },
+		usage = {
+			vertex_buffer 	= true,
+			immutable	= true,
+		}
 	})
 
 	indices := [?]u16 { 0, 1, 2,  0, 2, 3 }
 	state.bind.index_buffer = sg.make_buffer({
-		type = .INDEXBUFFER,
 		data = { ptr = &indices, size = size_of(indices) },
+		usage = {
+			index_buffer 	= true,
+			immutable	= true,
+		}
 	})
 
 	state.pip = sg.make_pipeline({
@@ -399,15 +414,16 @@ main :: proc () {
 	context.logger = log.create_console_logger()	
 	default_context = context
 
-    sapp.run({
-        init_cb = init,
-        frame_cb = frame,
-	event_cb = event,
-        cleanup_cb = cleanup,
-        width = WINDOW_DIMENSIONS.x,
-        height = WINDOW_DIMENSIONS.y,
-        window_title = "quad",
-        icon = { sokol_default = true },
-        logger = { func = slog.func },
-    })
+	sapp.run({
+		init_cb = init,
+		frame_cb = frame,
+		event_cb = event,
+		cleanup_cb = cleanup,
+		width = WINDOW_DIMENSIONS.x,
+		height = WINDOW_DIMENSIONS.y,
+		fullscreen = false,
+		window_title = "Splines",
+		icon = { sokol_default = true },
+		logger = { func = slog.func },
+	})
 }

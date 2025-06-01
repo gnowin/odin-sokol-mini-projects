@@ -42,7 +42,7 @@ handle_input_event :: proc (e : ^sapp.Event) {
 		case .MOUSE_UP:
 			mouse_button_state[0] = false
 		case .MOUSE_MOVE:
-			mouse_pos = {e.mouse_x, e.mouse_y}
+			mouse_pos = {e.mouse_x, e.mouse_y} / sapp.dpi_scale()
 	}
 }
 
