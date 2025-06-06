@@ -26,20 +26,13 @@ state: struct {
     bind: sg.Bindings,
 }
 
-line_state : struct {
-	pip: sg.Pipeline,
-	bind: sg.Bindings,
-	index_count : u16,
-}
-
 point :: struct {
 	pos : m.Vec2,
 	color : m.RGB,
 }
+
 marker : f32 = 0.0
-points := [dynamic]m.Vec3 {
-	{10.0, 10.0, 0.0}
-}
+
 selected_point : int = 0
 
 vertex :: struct {
@@ -48,73 +41,11 @@ vertex :: struct {
 	normal : m.Vec3,
 }
 
+course : Course
+
 camera := g.DEFAULT_CAMERA
 
 WINDOW_DIMENSIONS :: [2]i32{960, 720}
-
-
-MAX_POINTS :: 32
-MAX_POINTS_PER_LINE :: 32
-MAX_VERTICES :: 2 * MAX_POINTS * MAX_POINTS_PER_LINE
-MAX_INDICES :: 6 * MAX_POINTS * MAX_POINTS_PER_LINE
-
-setup_thick_lines_spline :: proc () {
-	line_state.bind.vertex_buffers[0] = sg.make_buffer({
-		size = MAX_VERTICES * size_of(vertex),
-		usage = {
-			vertex_buffer 	= true,
-			immutable	= false,
-			stream_update 	= true,
-		},
-	})	
-	line_state.bind.index_buffer = sg.make_buffer({
-		size = MAX_INDICES * size_of(u16),
-		usage = {
-			index_buffer	= true,
-			immutable	= false,
-			stream_update 	= true,
-		},
-
-	})
-	line_state.pip = sg.make_pipeline({
-		shader = sg.make_shader(course_shader.course_shader_desc(sg.query_backend())),
-		index_type = .UINT16,
-		layout = {
-		    attrs = {
-			course_shader.ATTR_course_position = { format = .FLOAT3 },
-			course_shader.ATTR_course_color0 = { format = .FLOAT4 },
-			course_shader.ATTR_course_normal0 = { format = .FLOAT3 },
-		    },
-		},
-		depth = {
-			write_enabled = true,
-			compare = .LESS_EQUAL,
-		},
-
-	})
-}
-
-update_thick_lines_spline :: proc () {
-	lps : u8 = 32
-	if len(points) > 2 {
-		vertices, indices := create_spline_quad_data(points[:], lines_per_section = lps, line_width = 4.0)	
-		points_count := len(points)
-		vertex_count := points_count * int(lps) * 2
-		index_count := points_count * int(lps) * 6
-
-		sg.update_buffer(line_state.bind.vertex_buffers[0], {
-			ptr = &vertices,
-			size = uint(vertex_count) * size_of(vertex)
-		})
-
-		sg.update_buffer(line_state.bind.index_buffer, {
-			ptr = &indices,
-			size = uint(index_count) * size_of(u16)
-		})
-
-		line_state.index_count = u16(index_count)	
-	}
-}
 
 init :: proc "c" () {
 	context = default_context
@@ -164,10 +95,10 @@ init :: proc "c" () {
 		    0 = { load_action = .CLEAR, clear_value = { 0, 0, 0, 1 }},
 		},
 	}
-	setup_thick_lines_spline()
 
-
-
+	setup_course(&course)	
+	course_append_point(&course, {0,0,0})
+	
 	camera.position = {0.0, 0.0, 180.0}
 }
 
@@ -181,30 +112,37 @@ event :: proc "c" (e : ^sapp.Event) {
 handle_input :: proc (dt : f32) {
 	// Change point
 	if input.key_pressed(.N) {
-		selected_point = (selected_point + 1) % len(points)
+		selected_point = (selected_point + 1) % int(course.point_count)
 	}
 	if input.key_pressed(.C) {
 		camera_state = (camera_state + 1) % 2
 	}
+
+	if input.key_pressed(.E) {
+		course.lines_per_section += 1	
+	}
+	if input.key_pressed(.Q) {
+		course.lines_per_section -= 1	
+	}
 	// Move selected point
 	move_speed : f32 = 60.0
 	if input.key_down(.W) {
-		points[selected_point].y -= move_speed * dt
+		course.point_positions[selected_point].y -= move_speed * dt
 	}
 	if input.key_down(.S) {
-		points[selected_point].y += move_speed * dt
+		course.point_positions[selected_point].y += move_speed * dt
 	}
 	if input.key_down(.A) {
-		points[selected_point].x -= move_speed * dt
+		course.point_positions[selected_point].x -= move_speed * dt
 	}
 	if input.key_down(.D) {
-		points[selected_point].x += move_speed * dt
+		course.point_positions[selected_point].x += move_speed * dt
 	}
 	if input.key_down(.J) {
-		points[selected_point].z -= move_speed * dt
+		course.point_positions[selected_point].z -= move_speed * dt
 	}
 	if input.key_down(.K) {
-		points[selected_point].z += move_speed * dt
+		course.point_positions[selected_point].z += move_speed * dt
 	}
 	rotate_speed : f32 = 0.2
 
@@ -232,10 +170,10 @@ handle_input :: proc (dt : f32) {
 		marker += 1.0 * dt
 	}
 	if marker <= 0.0 {
-		marker += f32(len(points))
+		marker += f32(len(course.point_positions))
 	}
-	if marker >= f32(len(points)) {
-		marker -= f32(len(points))
+	if marker >= f32(course.point_count) {
+		marker -= f32(course.point_count)
 	}
 
 	// Add new point in spline
@@ -253,33 +191,35 @@ handle_input :: proc (dt : f32) {
 		log.debug(ray_world)
 
 		_, intersect := m.line_plane_intersection(camera.position, ray_world, {0.0,0.0,0.0}, lin.normalize(m.Vec3{0.0,0.0,1.0}))
-		points_len := len(points)
 
-		if points_len < 3 {
-			append(&points, intersect)
+		if course.point_count < 3 {
+			course_append_point(&course, intersect)
 		}
+		else {
+			inject_index : u16 = 0
+			distance2 : f32 = math.F32_MAX
+			for i in 0..<course.point_count {
+				p0 := m.Vec2{intersect.x, intersect.y}
+				p1 := course.point_positions[i]
+				p2 := course.point_positions[(i+1)%course.point_count]
 
-		inject_index := 0
-		distance2 : f32 = math.F32_MAX
-		for i in 0..<points_len {
-			p0 := m.Vec2{intersect.x, intersect.y}
-			p1 := points[i]
-			p2 := points[(i+1)%points_len]
+				d1 := p1.xy - p0	 
+				p0p1 := lin.length2(d1)
 
-			d1 := p1.xy - p0	 
-			p0p1 := lin.length2(d1)
+				d2 := p2.xy - p0
+				p0p2 := lin.length2(d2)
 
-			d2 := p2.xy - p0
-			p0p2 := lin.length2(d2)
+				cur_distance2 := p0p1 + p0p2
+				if cur_distance2 < distance2 {
+					distance2 = cur_distance2
 
-			cur_distance2 := p0p1 + p0p2
-			if cur_distance2 < distance2 {
-				distance2 = cur_distance2
-
-				inject_index = (i+1)%points_len
+					inject_index = (i+1)%course.point_count
+				}
 			}
+			course_append_point(&course, intersect)
 		}
-		inject_at(&points, inject_index, intersect)	
+
+		//inject_at(&course.point_positions, inject_index, intersect)	
 	}
 }
 
@@ -296,8 +236,7 @@ frame :: proc "c" () {
 
 	handle_input(dt)
 
-	
-	update_thick_lines_spline()
+	update_course_model(&course)
 
 	vs_params : shader1.Vs_Params
 
@@ -313,14 +252,14 @@ frame :: proc "c" () {
 	sg.apply_uniforms(shader1.UB_vs_params, { ptr = &vs_params, size = size_of(vs_params) })
 	sg.draw(0, 6, 1)
 
-	sg.apply_pipeline(line_state.pip)
-	sg.apply_bindings(line_state.bind)
+	sg.apply_pipeline(course.pip)
+	sg.apply_bindings(course.bind)
 	vs_params = shader1.Vs_Params {
 		mvp = compute_mvp({0.0, 0.0, 0.0}, scale = 1.0),
 		p_color = m.Vec3{0.0, 1.0, 0.0}
 	}
 	sg.apply_uniforms(shader1.UB_vs_params, { ptr = &vs_params, size = size_of(vs_params)})
-	sg.draw(0, line_state.index_count, 1)
+	sg.draw(0, course.index_count, 1)
 
 
 	sg.apply_pipeline(state.pip)
@@ -328,13 +267,13 @@ frame :: proc "c" () {
 	spline_point_amount : f32 = 1.0
 
 
-	for i in 0..<len(points) {
+	for i in 0..<course.point_count {
 		vs_params := shader1.Vs_Params {
-			mvp = compute_mvp(points[i], scale = 1.0),
+			mvp = compute_mvp(course.point_positions[i], scale = 1.0),
 			p_color = m.Vec3{1.0,1.0,1.0},
 		}
 
-		if i == int(selected_point) {
+		if i == u16(selected_point) {
 			vs_params.p_color = m.Vec3{1.0, 0.0, 0.0}
 		}
 		sg.apply_uniforms(shader1.UB_vs_params, { ptr = &vs_params, size = size_of(vs_params)})
@@ -342,8 +281,8 @@ frame :: proc "c" () {
 	}
 	if camera_state == 0 {
 
-		p1 := get_spline_point(marker, points[:], true)
-		g1 := get_spline_gradient(marker, points[:], true)
+		p1 := get_spline_point(marker, course.point_positions[:], course.point_count, true)
+		g1 := get_spline_gradient(marker, course.point_positions[:], course.point_count, true)
 		p2, p3 := get_spline_wings(p1, g1, 3.0)
 
 		vs_params = shader1.Vs_Params {
@@ -389,8 +328,8 @@ compute_mvp :: proc (pos : m.Vec3, scale : m.Vec3 = 3.0) -> m.Mat4 {
  
 	}
 	else{
-		p1 := get_spline_point(marker, points[:], true)
-		g1 := get_spline_gradient(marker, points[:], true)
+		p1 := get_spline_point(marker, course.point_positions[:], course.point_count, true)
+		g1 := get_spline_gradient(marker, course.point_positions[:], course.point_count, true)
 		left := right_angle_vector(g1)
 		up := lin.normalize(lin.cross(g1, left))
 		above_ground := up * 2.5
@@ -404,8 +343,6 @@ compute_mvp :: proc (pos : m.Vec3, scale : m.Vec3 = 3.0) -> m.Mat4 {
 
 cleanup :: proc "c" () {
 	context = default_context
-
-	delete(points)
 
 	sg.shutdown()
 }
