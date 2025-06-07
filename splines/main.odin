@@ -216,7 +216,7 @@ handle_input :: proc (dt : f32) {
 					inject_index = (i+1)%course.point_count
 				}
 			}
-			course_append_point(&course, intersect)
+			course_inject_point(&course, intersect, inject_index)
 		}
 
 		//inject_at(&course.point_positions, inject_index, intersect)	

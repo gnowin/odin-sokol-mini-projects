@@ -129,3 +129,16 @@ course_append_point :: proc (c : ^Course, pos : m.Vec3) {
 	}
 }
 
+course_inject_point :: proc (c : ^Course, pos : m.Vec3, index : u16) {
+	if (c.point_count >= MAX_POINTS){
+		return
+	}
+	for i := c.point_count; i > index; i -= 1 {
+		c.point_positions[i] = c.point_positions[i-1]
+		c.point_widths[i] = c.point_widths[i-1]
+	}
+	c.point_positions[index] = pos 
+	c.point_widths[index] = 1.0
+
+	c.point_count += 1
+}
