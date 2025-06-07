@@ -177,12 +177,9 @@ handle_input :: proc (dt : f32) {
 	}
 
 	// Add new point in spline
-	// (Worked for orthographic camera, needs to be changed now)
 	if input.mouse_pressed(.LEFT){
-		//actual_pos := input.get_mouse_pos() * m.Vec2{160.0/2560, 80.0/1280}
 		m_pos := input.get_mouse_pos()
 		w_dim := m.Vec2{f32(WINDOW_DIMENSIONS.x), f32(WINDOW_DIMENSIONS.y)}
-		// normalized device coordinate where x and y from -1.0 to 1.0
 
 		view := g.get_camera_view(camera) 
 		proj := g.get_camera_projection(camera)
@@ -218,8 +215,6 @@ handle_input :: proc (dt : f32) {
 			}
 			course_inject_point(&course, intersect, inject_index)
 		}
-
-		//inject_at(&course.point_positions, inject_index, intersect)	
 	}
 }
 
@@ -232,7 +227,6 @@ frame :: proc "c" () {
 	dt := f32(sapp.frame_duration())
 	time += dt
 	marker += 0.1 * dt
-	//camera.pos.x = (math.sin(time) - 0.5) * 100
 
 	handle_input(dt)
 

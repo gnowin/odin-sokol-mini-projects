@@ -38,8 +38,6 @@ get_spline_point :: proc (t : f32, points : []m.Vec3, point_count : u16, looped 
 	pos : m.Vec3
 	
 	for i in 0..<3 {
-		// i = 0, 1, 2 which corresponds to x, y, z
-		// maybe  change to some kind of Vector matrix multiplication later
 		pos[i] = 0.5 * (points[p0][i] * q0 + points[p1][i] * q1 + points[p2][i] * q2 + points[p3][i] * q3) 
 	}
 	return pos
@@ -60,8 +58,6 @@ get_spline_gradient :: proc (t : f32, points : []m.Vec3, point_count : u16, loop
 	pos : m.Vec3
 	
 	for i in 0..<3 {
-		// i = 0, 1, 2 which corresponds to x, y, z
-		// maybe  change to some kind of Vector matrix multiplication later
 		pos[i] = 0.5 * (points[p0][i] * q0 + points[p1][i] * q1 + points[p2][i] * q2 + points[p3][i] * q3) 
 	}
 	
@@ -71,10 +67,7 @@ get_spline_gradient :: proc (t : f32, points : []m.Vec3, point_count : u16, loop
 // Calculate a Vector that is +90 degrees of input Vector 
 right_angle_vector :: proc (v : m.Vec3) -> m.Vec3  {
 	a  := math.atan2(-v.y, v.x)
-//	g := gradient
-//	w1 := point + spread * lin.normalize(m.Vec3{-g.y, g.x, g.z})
-//	w2 := point + spread * lin.normalize(m.Vec3{g.y, -g.x, g.z})
-	
+
 	return m.Vec3{math.sin(a), math.cos(a), 0.0}
 }
 
