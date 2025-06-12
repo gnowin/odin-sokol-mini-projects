@@ -85,10 +85,12 @@ _create_model_data :: proc (c : ^Course) -> ([MAX_VERTICES]vertex, [MAX_INDICES]
 		vi := i * 2
 		ii := (i * 6)
 
-
-		line_vertices[vi] 	= vertex{{w2.x, w2.y, w2.z}, {1.0, 1.0, 1.0, 1.0}, normal}
-		line_vertices[vi+1] 	= vertex{{w1.x, w1.y, w1.z}, {1.0, 1.0, 1.0, 1.0}, normal}
+		line_vertices[vi] 	= vertex{w2, {1.0, 1.0, 1.0, 1.0}, normal}
+		line_vertices[vi+1] 	= vertex{w1, {1.0, 1.0, 1.0, 1.0}, normal}
+		// TODO:
+		// add two new vertices (not only one as they need another normal) for each side of path
 		
+		// similar indices for new vertices
 		line_indices[ii] = 	u16(ii/3)	
 		line_indices[ii+1] = 	u16(ii/3 + 1) % (vertex_count)
 		line_indices[ii+2] = 	u16(ii/3 + 3) % (vertex_count)

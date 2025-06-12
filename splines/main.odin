@@ -7,6 +7,9 @@ import sg "shared:sokol/gfx"
 import sapp "shared:sokol/app"
 import sglue "shared:sokol/glue"
 
+import imgui "shared:odin-imgui"
+import imgl "shared:odin-imgui/imgui_impl_opengl3"
+
 import log "core:log"
 import math "core:math"
 import lin "core:math/linalg"
@@ -47,6 +50,8 @@ camera := g.DEFAULT_CAMERA
 
 WINDOW_DIMENSIONS :: [2]i32{960, 720}
 
+io : ^imgui.IO
+
 init :: proc "c" () {
 	context = default_context
 
@@ -54,6 +59,18 @@ init :: proc "c" () {
 		environment = sglue.environment(),
 		logger = { func = slog.func },
 	})
+
+	imgui_ctx := imgui.CreateContext()
+	io = imgui.GetIO()
+	io.ConfigFlags += { .NavEnableKeyboard, .DockingEnable }
+	io.DisplaySize = { f32(sapp.width()), f32(sapp.height()) }
+	imgl.Init("#version 430")
+
+	log.debug(sapp.width())
+	log.debug(sapp.height())
+
+	log.debug(f32(WINDOW_DIMENSIONS.x)/sapp.dpi_scale())
+
 
 	vertices := [?]f32 {
 		// positions         colors
@@ -215,6 +232,14 @@ handle_input :: proc (dt : f32) {
 			}
 			course_inject_point(&course, intersect, inject_index)
 		}
+
+
+	}
+
+	if input.mouse_down(.LEFT){
+		imgui.IO_AddMouseButtonEvent(io, i32(sapp.Mousebutton.LEFT), true)
+	} else {
+		imgui.IO_AddMouseButtonEvent(io, i32(sapp.Mousebutton.LEFT), false)
 	}
 }
 
@@ -228,11 +253,16 @@ frame :: proc "c" () {
 	time += dt
 	marker += 0.1 * dt
 
+	m_pos := input.get_mouse_pos() * sapp.dpi_scale()
+	imgui.IO_AddMousePosEvent(io, m_pos.x, m_pos.y)
 	handle_input(dt)
 
 	update_course_model(&course)
 
 	vs_params : shader1.Vs_Params
+	
+	imgl.NewFrame()
+	imgui.NewFrame()
 
 	sg.begin_pass({ action = state.pass_action, swapchain = sglue.swapchain() })
 
@@ -303,8 +333,24 @@ frame :: proc "c" () {
 		sg.draw(0, 6, 1)
 
 	}
+
+	imgui.Begin("test")
+	{
+		imgui.Text("Hello!", 123)
+		if imgui.Button("Save"){
+			log.debug("woaaa")
+		}
+		if imgui.IsWindowHovered() {
+			log.debug("hovering")
+		}
+	}	
+	imgui.End()
+
+	imgui.Render()
+	imgl.RenderDrawData(imgui.GetDrawData())
 	
 	sg.end_pass()
+	
 	sg.commit()
 }
 compute_ortho_mvp :: proc (pos : m.Vec3, scale : f32 = 3.0) -> m.Mat4 {
